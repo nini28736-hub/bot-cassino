@@ -26,3 +26,6 @@ class WSSClient:
             except Exception as e:
                 print(f"Erro WSS: {e}. Reconectando em 5s...")
                 await asyncio.sleep(5)
+
+    async def start(self):
+        await self.connect()
