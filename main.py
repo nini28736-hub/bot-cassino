@@ -36,7 +36,7 @@ async def main():
     bot = Bot(token=bot_token)
     dp = Dispatcher()
 
-    dp.update.middleware(LicenseMiddleware())
+    dp.message.outer_middleware(LicenseMiddleware())
     dp.include_router(bot_router)
 
     strategies = [ColorPatternStrategy(), SequenceBreakStrategy()]
