@@ -18,17 +18,26 @@ class WSSClient:
 
         while True:
             try:
-                # Tenta o formato novo (websockets v13+)
+                # Mantem conexao ativa enviando pings automaticos a cada 20s
                 try:
-                    async with websockets.connect(self.url, additional_headers=self.headers) as ws:
-                        print("🟢 Conectado com sucesso ao WebSocket!")
+                    async with websockets.connect(
+                        self.url,
+                        additional_headers=self.headers,
+                        ping_interval=20,
+                        ping_timeout=10
+                    ) as ws:
+                        print("🟢 Conexao estabilizada e escutando o WebSocket!")
                         async for message in ws:
                             if self.data_queue:
                                 await self.data_queue.put(message)
-                # Fallback para versão anterior do websockets (v12 ou menor)
                 except TypeError:
-                    async with websockets.connect(self.url, extra_headers=self.headers) as ws:
-                        print("🟢 Conectado com sucesso ao WebSocket!")
+                    async with websockets.connect(
+                        self.url,
+                        extra_headers=self.headers,
+                        ping_interval=20,
+                        ping_timeout=10
+                    ) as ws:
+                        print("🟢 Conexao estabilizada e escutando o WebSocket!")
                         async for message in ws:
                             if self.data_queue:
                                 await self.data_queue.put(message)
