@@ -1,6 +1,8 @@
 import asyncio
 import json
 import os
+import time
+import uuid
 import websockets
 
 class WSSClient:
@@ -13,12 +15,16 @@ class WSSClient:
         }
 
     async def _keepalive(self, ws):
-        """Envia um pulso periodico a cada 20s para impedir a queda por ociosidade (1011)"""
+        """Envia o heartbeat periodico exigido pelo servidor a cada 15 segundos"""
         while True:
-            await asyncio.sleep(20)
+            await asyncio.sleep(15)
+            ping_payload = {
+                "cid": 519,
+                "ts": int(time.time() * 1000),
+                "uuid": str(uuid.uuid4())
+            }
             try:
-                # Envia ping de controle do websocket
-                await ws.ping()
+                await ws.send(json.dumps(ping_payload))
             except Exception:
                 break
 
@@ -30,17 +36,21 @@ class WSSClient:
         init_payload = {
             "brand_key": "427279c5",
             "cid": 3,
-            "device_id": "8030a756-a2bc-497e-8c2f-5e0d6d932668",
+            "device_id": str(uuid.uuid4()),
             "label_key": "4742f935-4586-487c-97a0-2dc10a19b4c7",
             "label_name": "4742f935-4586-487c-97a0-2dc10a19b4c7",
             "page": "https://sortenabet.bet.br/magic-roulette",
-            "session_id": "051fc5c0-73ff-4682-b41b-95fbee29bd0c",
+            "session_id": str(uuid.uuid4()),
             "simulation_mode": False,
-            "tracker_version": "1.3.503"
+            "tracker_version": "1.3.504"
         }
 
         while True:
             try:
+                # Atualiza o timestamp do handshake inicial
+                init_payload["ts"] = int(time.time() * 1000)
+                init_payload["uuid"] = str(uuid.uuid4())
+
                 async with websockets.connect(
                     self.url,
                     additional_headers=self.headers,
@@ -48,9 +58,8 @@ class WSSClient:
                 ) as ws:
                     print("🟢 Conectado! Enviando handshake inicial...")
                     await ws.send(json.dumps(init_payload))
-                    print("✅ Handshake enviado! Mantedo conexao viva...")
+                    print("✅ Handshake enviado! Mantendo conexao viva com ping JSON...")
 
-                    # Inicia a tarefa paralela para nao deixar a conexao cair
                     ping_task = asyncio.create_task(self._keepalive(ws))
 
                     try:
@@ -63,6 +72,9 @@ class WSSClient:
 
             except TypeError:
                 try:
+                    init_payload["ts"] = int(time.time() * 1000)
+                    init_payload["uuid"] = str(uuid.uuid4())
+
                     async with websockets.connect(
                         self.url,
                         extra_headers=self.headers,
@@ -70,7 +82,7 @@ class WSSClient:
                     ) as ws:
                         print("🟢 Conectado! Enviando handshake inicial...")
                         await ws.send(json.dumps(init_payload))
-                        print("✅ Handshake enviado! Mantendo conexao viva...")
+                        print("✅ Handshake enviado! Mantendo conexao viva com ping JSON...")
 
                         ping_task = asyncio.create_task(self._keepalive(ws))
 
@@ -88,6 +100,9 @@ class WSSClient:
             except Exception as e:
                 print(f"Erro WSS: {e}. Reconectando em 5s...")
                 await asyncio.sleep(5)
+
+    async def start(self):
+        await self.connect()
 
     async def start(self):
         await self.connect()
