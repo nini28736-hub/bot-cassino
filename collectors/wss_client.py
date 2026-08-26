@@ -15,11 +15,11 @@ class WSSClient:
         }
 
     async def _keepalive(self, ws):
-        """Envia o heartbeat periodico exigido pelo servidor a cada 15 segundos"""
+        """Envia o heartbeat oficial (cid: 1) a cada 20 segundos para manter a conexao ativa"""
         while True:
-            await asyncio.sleep(15)
+            await asyncio.sleep(20)
             ping_payload = {
-                "cid": 519,
+                "cid": 1,
                 "ts": int(time.time() * 1000),
                 "uuid": str(uuid.uuid4())
             }
@@ -47,7 +47,6 @@ class WSSClient:
 
         while True:
             try:
-                # Atualiza o timestamp do handshake inicial
                 init_payload["ts"] = int(time.time() * 1000)
                 init_payload["uuid"] = str(uuid.uuid4())
 
@@ -58,7 +57,7 @@ class WSSClient:
                 ) as ws:
                     print("🟢 Conectado! Enviando handshake inicial...")
                     await ws.send(json.dumps(init_payload))
-                    print("✅ Handshake enviado! Mantendo conexao viva com ping JSON...")
+                    print("✅ Handshake enviado! Mantendo conexao viva com cid: 1...")
 
                     ping_task = asyncio.create_task(self._keepalive(ws))
 
@@ -82,7 +81,7 @@ class WSSClient:
                     ) as ws:
                         print("🟢 Conectado! Enviando handshake inicial...")
                         await ws.send(json.dumps(init_payload))
-                        print("✅ Handshake enviado! Mantendo conexao viva com ping JSON...")
+                        print("✅ Handshake enviado! Mantendo conexao viva com cid: 1...")
 
                         ping_task = asyncio.create_task(self._keepalive(ws))
 
@@ -100,9 +99,6 @@ class WSSClient:
             except Exception as e:
                 print(f"Erro WSS: {e}. Reconectando em 5s...")
                 await asyncio.sleep(5)
-
-    async def start(self):
-        await self.connect()
 
     async def start(self):
         await self.connect()
