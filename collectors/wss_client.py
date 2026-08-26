@@ -4,6 +4,7 @@ import os
 import time
 import uuid
 import websockets
+from websockets.exceptions import ConnectionClosed
 
 class WSSClient:
     def __init__(self, url: str = None, data_queue: asyncio.Queue = None):
@@ -14,6 +15,30 @@ class WSSClient:
             "Origin": "https://sortenabet.bet.br"
         }
 
+    async def _connect_loop(self, connect_func):
+        init_payload = {
+            "brand_key": "427279c5",
+            "cid": 3,
+            "device_id": str(uuid.uuid4()),
+            "label_key": "4742f935-4586-487c-97a0-2dc10a19b4c7",
+            "label_name": "4742f935-4586-487c-97a0-2dc10a19b4c7",
+            "page": "https://sortenabet.bet.br/magic-roulette",
+            "session_id": str(uuid.uuid4()),
+            "simulation_mode": False,
+            "tracker_version": "1.3.504",
+            "ts": int(time.time() * 1000),
+            "uuid": str(uuid.uuid4())
+        }
+
+        async with connect_func() as ws:
+            print("🟢 Conectado ao servidor!")
+            await ws.send(json.dumps(init_payload))
+            
+            async for message in ws:
+                print(f"📩 Dado recebido: {message[:100]}...")
+                if self.data_queue:
+                    await self.data_queue.put(message)
+
     async def connect(self):
         if not self.url:
             print("Erro: WSS_URL nao configurada.")
@@ -21,59 +46,33 @@ class WSSClient:
 
         while True:
             try:
-                # Gera dados de sessao dinamicos a cada tentativa de reconexao
-                init_payload = {
-                    "brand_key": "427279c5",
-                    "cid": 3,
-                    "device_id": str(uuid.uuid4()),
-                    "label_key": "4742f935-4586-487c-97a0-2dc10a19b4c7",
-                    "label_name": "4742f935-4586-487c-97a0-2dc10a19b4c7",
-                    "page": "https://sortenabet.bet.br/magic-roulette",
-                    "session_id": str(uuid.uuid4()),
-                    "simulation_mode": False,
-                    "tracker_version": "1.3.504",
-                    "ts": int(time.time() * 1000),
-                    "uuid": str(uuid.uuid4())
-                }
-
-                async with websockets.connect(
-                    self.url,
-                    additional_headers=self.headers,
-                    ping_interval=10,
-                    ping_timeout=10
-                ) as ws:
-                    print("🟢 Conectado! Enviando handshake inicial...")
-                    await ws.send(json.dumps(init_payload))
-                    print("✅ Handshake enviado! Aguardando dados...")
-
-                    async for message in ws:
-                        print(f"📩 Dado recebido do jogo: {message}")
-                        if self.data_queue:
-                            await self.data_queue.put(message)
-
+                # Tenta conectar via websockets (v13+)
+                await self._connect_loop(
+                    lambda: websockets.connect(
+                        self.url,
+                        additional_headers=self.headers,
+                        ping_interval=None
+                    )
+                )
             except TypeError:
                 try:
-                    init_payload["ts"] = int(time.time() * 1000)
-                    init_payload["uuid"] = str(uuid.uuid4())
-
-                    async with websockets.connect(
-                        self.url,
-                        extra_headers=self.headers,
-                        ping_interval=10,
-                        ping_timeout=10
-                    ) as ws:
-                        print("🟢 Conectado! Enviando handshake inicial...")
-                        await ws.send(json.dumps(init_payload))
-                        print("✅ Handshake enviado! Aguardando dados...")
-
-                        async for message in ws:
-                            print(f"📩 Dado recebido do jogo: {message}")
-                            if self.data_queue:
-                                await self.data_queue.put(message)
+                    # Fallback para versões anteriores do websockets
+                    await self._connect_loop(
+                        lambda: websockets.connect(
+                            self.url,
+                            extra_headers=self.headers,
+                            ping_interval=None
+                        )
+                    )
+                except ConnectionClosed:
+                    print("🔄 Sessao expirada pelo servidor. Reconectando em 2s...")
+                    await asyncio.sleep(2)
                 except Exception as e:
                     print(f"Erro WSS: {e}. Reconectando em 5s...")
                     await asyncio.sleep(5)
-
+            except ConnectionClosed:
+                print("🔄 Sessao expirada pelo servidor. Reconectando em 2s...")
+                await asyncio.sleep(2)
             except Exception as e:
                 print(f"Erro WSS: {e}. Reconectando em 5s...")
                 await asyncio.sleep(5)
