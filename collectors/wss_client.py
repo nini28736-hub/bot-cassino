@@ -18,11 +18,21 @@ class WSSClient:
 
         while True:
             try:
-                async with websockets.connect(self.url, extra_headers=self.headers) as ws:
-                    print("🟢 Conectado com sucesso ao WebSocket!")
-                    async for message in ws:
-                        if self.data_queue:
-                            await self.data_queue.put(message)
+                # Tenta o formato novo (websockets v13+)
+                try:
+                    async with websockets.connect(self.url, additional_headers=self.headers) as ws:
+                        print("🟢 Conectado com sucesso ao WebSocket!")
+                        async for message in ws:
+                            if self.data_queue:
+                                await self.data_queue.put(message)
+                # Fallback para versão anterior do websockets (v12 ou menor)
+                except TypeError:
+                    async with websockets.connect(self.url, extra_headers=self.headers) as ws:
+                        print("🟢 Conectado com sucesso ao WebSocket!")
+                        async for message in ws:
+                            if self.data_queue:
+                                await self.data_queue.put(message)
+
             except Exception as e:
                 print(f"Erro WSS: {e}. Reconectando em 5s...")
                 await asyncio.sleep(5)
