@@ -1,25 +1,19 @@
-import asyncio
-import json
-import logging
 import websockets
+import json
+import os
 
-class WSSClient:
-    def __init__(self, url: str, data_queue: asyncio.Queue):
-        self.url = url
-        self.data_queue = data_queue
-        self.is_running = False
+WSS_URL = os.getenv("WSS_URL")
 
-    async def start(self):
-        self.is_running = True
-        while self.is_running:
-            try:
-                async with websockets.connect(self.url) as ws:
-                    logging.info("WebSocket conectado.")
-                    while self.is_running:
-                        message = await ws.recv()
-                        data = json.loads(message)
-                        if "result" in data:
-                            await self.data_queue.put(data["result"])
-            except Exception as e:
-                logging.error(f"Erro WSS: {e}. Reconectando em 5s...")
-                await asyncio.sleep(5)
+# Cabeçalhos obrigatórios para o servidor da Cactus Gaming liberar o bot
+headers = {
+    "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, Gecko) Chrome/120.0.0.0 Safari/537.36",
+    "Origin": "https://sortenabet.bet.br"
+}
+
+async def connect_to_game():
+    # Adicione o parâmetro extra_headers na conexão
+    async with websockets.connect(WSS_URL, extra_headers=headers) as websocket:
+        print("Conectado com sucesso ao WebSocket!")
+        while True:
+            response = await websocket.recv()
+            print("Dado recebido:", response)
