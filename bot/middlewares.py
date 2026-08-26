@@ -1,23 +1,28 @@
 from aiogram import BaseMiddleware
-from aiogram.types import Message
+from aiogram.types import TelegramObject, User
 from typing import Callable, Dict, Any
 
 class LicenseMiddleware(BaseMiddleware):
     async def __call__(
         self,
-        handler: Callable[[Message, Dict[str, Any]], Any],
-        event: Message,
+        handler: Callable[[TelegramObject, Dict[str, Any]], Any],
+        event: TelegramObject,
         data: Dict[str, Any]
     ) -> Any:
-        user_id = event.from_user.id
+        user: User = data.get("event_from_user")
         db = data.get("db")
-        
-        if event.text and event.text.startswith("/start"):
+
+        if not user:
             return await handler(event, data)
 
-        user = await db.get_user(user_id)
-        if not user or not user.get("is_active"):
-            await event.answer("❌ Acesso negado. Licenca invalida.")
+        text = getattr(event, "text", "") or ""
+        if text.startswith("/start"):
+            return await handler(event, data)
+
+        user_data = await db.get_user(user.id)
+        if not user_data or not user_data.get("is_active"):
+            if hasattr(event, "answer"):
+                await event.answer("❌ Acesso negado. Licenca invalida.")
             return
 
         return await handler(event, data)
