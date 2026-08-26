@@ -12,12 +12,21 @@ class WSSClient:
             "Origin": "https://sortenabet.bet.br"
         }
 
+    async def _keepalive(self, ws):
+        """Envia um pulso periodico a cada 20s para impedir a queda por ociosidade (1011)"""
+        while True:
+            await asyncio.sleep(20)
+            try:
+                # Envia ping de controle do websocket
+                await ws.ping()
+            except Exception:
+                break
+
     async def connect(self):
         if not self.url:
             print("Erro: WSS_URL nao configurada.")
             return
 
-        # Pacote de autoria/inicialização do jogo
         init_payload = {
             "brand_key": "427279c5",
             "cid": 3,
@@ -32,7 +41,6 @@ class WSSClient:
 
         while True:
             try:
-                # Tenta conexao no websockets v13+
                 async with websockets.connect(
                     self.url,
                     additional_headers=self.headers,
@@ -40,15 +48,20 @@ class WSSClient:
                 ) as ws:
                     print("🟢 Conectado! Enviando handshake inicial...")
                     await ws.send(json.dumps(init_payload))
-                    print("✅ Handshake enviado! Aguardando rodadas do jogo...")
+                    print("✅ Handshake enviado! Mantedo conexao viva...")
 
-                    async for message in ws:
-                        print(f"📩 Dado recebido do jogo: {message}")
-                        if self.data_queue:
-                            await self.data_queue.put(message)
+                    # Inicia a tarefa paralela para nao deixar a conexao cair
+                    ping_task = asyncio.create_task(self._keepalive(ws))
+
+                    try:
+                        async for message in ws:
+                            print(f"📩 Dado recebido do jogo: {message}")
+                            if self.data_queue:
+                                await self.data_queue.put(message)
+                    finally:
+                        ping_task.cancel()
 
             except TypeError:
-                # Fallback para versoes anteriores do websockets
                 try:
                     async with websockets.connect(
                         self.url,
@@ -57,12 +70,17 @@ class WSSClient:
                     ) as ws:
                         print("🟢 Conectado! Enviando handshake inicial...")
                         await ws.send(json.dumps(init_payload))
-                        print("✅ Handshake enviado! Aguardando rodadas do jogo...")
+                        print("✅ Handshake enviado! Mantendo conexao viva...")
 
-                        async for message in ws:
-                            print(f"📩 Dado recebido do jogo: {message}")
-                            if self.data_queue:
-                                await self.data_queue.put(message)
+                        ping_task = asyncio.create_task(self._keepalive(ws))
+
+                        try:
+                            async for message in ws:
+                                print(f"📩 Dado recebido do jogo: {message}")
+                                if self.data_queue:
+                                    await self.data_queue.put(message)
+                        finally:
+                            ping_task.cancel()
                 except Exception as e:
                     print(f"Erro WSS: {e}. Reconectando em 5s...")
                     await asyncio.sleep(5)
