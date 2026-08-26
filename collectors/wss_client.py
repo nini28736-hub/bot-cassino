@@ -3,9 +3,12 @@ import os
 import websockets
 from websockets.exceptions import ConnectionClosed
 
+# Link padrao da Evolution caso a variavel de ambiente nao seja detectada
+DEFAULT_WSS_URL = "wss://sortenabet.evo-games.com/public/bacbo/player/game/SortenaBacBo0001/socket?messageFormat=json&tableConfig=txpifq7wh56aauyb&EVOSESSIONID=tyoiqqrorafexvh3ua7duvyxhwj3bzowd04dceac74a5357c112bf14d2ff75d284726000fb6e71d2f&instance=ryd5qc-tyoiqqrorafexvh3-txpifq7wh56aauyb&client_version=6.20260826.73623.64628-72eea7188b-r2"
+
 class WSSClient:
     def __init__(self, url: str = None, data_queue: asyncio.Queue = None):
-        self.url = url or os.getenv("WSS_URL")
+        self.url = url or os.getenv("WSS_URL") or DEFAULT_WSS_URL
         self.data_queue = data_queue
         self.headers = {
             "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, Gecko) Chrome/120.0.0.0 Safari/537.36",
@@ -13,13 +16,8 @@ class WSSClient:
         }
 
     async def connect(self):
-        if not self.url:
-            print("Erro: WSS_URL nao configurada no .env / Square Cloud.")
-            return
-
         while True:
             try:
-                # O parâmetro ping_interval=20 mantêm a conexão viva com a Evolution
                 try:
                     async with websockets.connect(
                         self.url,
